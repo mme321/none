@@ -10,13 +10,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mme321/none.git"
+    "url": "git+https://github.com/mme321/maaser.git"
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/mme321/none/issues"
+    "url": "https://github.com/mme321/maaser/issues"
   },
-  "homepage": "https://github.com/mme321/none#readme",
+  "homepage": "https://github.com/mme321/maaser#readme",
   "dependencies": {
     "express": "^5.3.0",
     "pg": "^8.23.1"
