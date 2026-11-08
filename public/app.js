@@ -15,22 +15,37 @@ async function api(method, url, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && data.login) {
+    showLogin();
+    throw new Error(data.error);
+  }
   if (!res.ok) throw new Error(data.error || `שגיאה ${res.status}`);
   return data;
 }
 
+function showLogin() {
+  for (const id of ['#lockScreen', '#main', '#syncBtn', '#lockBtn', '#logoutBtn', '#userName']) $(id).hidden = true;
+  $('#loginScreen').hidden = false;
+}
+
 async function refresh() {
   state = await api('GET', '/api/state');
+  $('#loginScreen').hidden = true;
+  $('#logoutBtn').hidden = !state.googleLogin;
+  $('#userName').hidden = !state.user.email;
+  $('#userName').textContent = state.user.name || state.user.email;
+  $('#accountEmail').textContent = state.user.email ? `מחובר כ-${state.user.email}` : 'מצב מקומי (ללא התחברות)';
   const locked = !state.unlocked;
   $('#lockScreen').hidden = !locked;
   $('#main').hidden = locked;
   $('#syncBtn').hidden = locked;
   $('#lockBtn').hidden = locked;
   if (locked) {
-    $('#lockTitle').textContent = state.hasVault ? 'פתיחת האפליקציה' : 'ברוכים הבאים!';
+    $('#forgotPw').hidden = !state.hasVault;
+    $('#lockTitle').textContent = state.hasVault ? 'פתיחת הכספת' : 'יצירת סיסמת הצפנה';
     $('#lockHint').textContent = state.hasVault
-      ? 'הזינו את סיסמת-העל שלכם.'
-      : 'בחרו סיסמת-על. היא משמשת להצפנת פרטי ההתחברות לבנקים ואינה נשמרת בשום מקום – אל תשכחו אותה.';
+      ? 'הזינו את סיסמת ההצפנה שלכם כדי לגשת לפרטי הבנקים.'
+      : 'בחרו סיסמת הצפנה. פרטי ההתחברות לבנקים יוצפנו בעזרתה, והיא לא נשמרת בשום מקום – גם לא אצלנו. אל תשכחו אותה.';
     $('#lockSubmit').textContent = state.hasVault ? 'פתיחה' : 'יצירה';
     $('#masterPw').autocomplete = state.hasVault ? 'current-password' : 'new-password';
     return;
@@ -50,13 +65,23 @@ function renderSummary() {
   $('#sDonated').textContent = nis(s.donated);
   $('#sBalanceLabel').textContent = s.balance >= 0 ? 'נשאר לתת' : 'נתת מעבר (זכות)';
   $('#sBalance').textContent = nis(Math.abs(s.balance));
+  const showC = state.settings.showChomesh && s.percent !== 20;
+  $('#chomeshStats').hidden = !showC;
+  $('#sDueC').textContent = nis(s.chomesh.due);
+  $('#sBalanceCLabel').textContent = s.chomesh.balance >= 0 ? 'נשאר לתת לפי חומש' : 'זכות לפי חומש';
+  $('#sBalanceC').textContent = nis(Math.abs(s.chomesh.balance));
+  const label = s.percent === 20 ? 'חומש' : 'מעשר';
+  $('#monthlyHead').innerHTML = `<tr><th>חודש</th><th>הכנסות</th><th>${label}</th><th>נתרם</th><th>יתרה מצטברת</th>
+    ${showC ? '<th>חומש</th><th>יתרה (חומש)</th>' : ''}</tr>`;
   $('#monthlyEmpty').hidden = s.monthly.length > 0;
+  const cls = (v) => (v > 0 ? 'neg' : 'pos');
   $('#monthlyBody').innerHTML = s.monthly
     .slice()
     .reverse()
     .map(
       (m) => `<tr><td>${m.month}</td><td>${nis(m.income)}</td><td>${nis(m.due)}</td>
-        <td>${nis(m.donated)}</td><td class="${m.balance > 0 ? 'neg' : 'pos'}">${nis(m.balance)}</td></tr>`
+        <td>${nis(m.donated)}</td><td class="${cls(m.balance)}">${nis(m.balance)}</td>
+        ${showC ? `<td>${nis(m.dueChomesh)}</td><td class="${cls(m.balanceChomesh)}">${nis(m.balanceChomesh)}</td>` : ''}</tr>`
     )
     .join('');
 }
@@ -96,6 +121,7 @@ function renderSettings() {
   const f = $('#settingsForm');
   if (f.dataset.loaded) return;
   f.percent.value = String(state.settings.percent);
+  f.showChomesh.checked = !!state.settings.showChomesh;
   f.startDate.value = state.settings.startDate;
   f.openingBalance.value = state.settings.openingBalance;
   f.autoSyncHours.value = state.settings.autoSyncHours;
@@ -305,6 +331,7 @@ $('#settingsForm').addEventListener('submit', async (e) => {
   try {
     await api('PUT', '/api/settings', {
       percent: f.percent.value,
+      showChomesh: f.showChomesh.checked,
       startDate: f.startDate.value,
       openingBalance: f.openingBalance.value,
       autoSyncHours: f.autoSyncHours.value,
@@ -317,4 +344,40 @@ $('#settingsForm').addEventListener('submit', async (e) => {
   }
 });
 
-refresh().catch((e) => alert(e.message));
+$('#logoutBtn').addEventListener('click', async () => {
+  await api('POST', '/auth/logout').catch(() => {});
+  location.href = '/';
+});
+
+$('#forgotPw').addEventListener('click', async (e) => {
+  e.preventDefault();
+  if (!confirm('אי אפשר לשחזר את סיסמת ההצפנה. אפשר לאפס אותה – פרטי ההתחברות לבנקים יימחקו ותצטרכו להזין אותם מחדש (התנועות והחישובים יישמרו). להמשיך?')) return;
+  try {
+    await api('POST', '/api/vault/reset', { confirm: true });
+    refresh();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+$('#deleteUserBtn').addEventListener('click', async () => {
+  if (!confirm('למחוק לצמיתות את החשבון, פרטי הבנקים וכל התנועות? אי אפשר לבטל.')) return;
+  try {
+    await api('POST', '/api/account/delete', { confirm: true });
+    location.href = '/';
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+const loginError = new URLSearchParams(location.search).get('login_error');
+if (loginError) {
+  $('#loginError').textContent = loginError;
+  history.replaceState(null, '', '/');
+}
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+refresh().catch((e) => {
+  if ($('#loginScreen').hidden) alert(e.message);
+});

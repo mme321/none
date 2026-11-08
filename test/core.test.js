@@ -44,6 +44,9 @@ test('summarize: income, due, donations, balance, monthly', () => {
   assert.equal(s.donated, 500);
   assert.equal(s.balance, 1600);
   assert.deepEqual(s.monthly.map((m) => m.balance), [600, 1600]);
+  assert.equal(s.chomesh.due, 4100);
+  assert.equal(s.chomesh.balance, 3600);
+  assert.deepEqual(s.monthly.map((m) => m.balanceChomesh), [1600, 3600]);
   db.settings.percent = 20;
   assert.equal(summarize(db).due, 4100);
 });

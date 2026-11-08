@@ -41,7 +41,7 @@ header {
   border-bottom: 1px solid var(--border);
 }
 header h1 { font-size: 1.3rem; margin: 0; }
-main, #lockScreen { max-width: 1000px; margin: 16px auto; padding: 0 16px; }
+main, #lockScreen, #loginScreen { max-width: 1000px; margin: 16px auto; padding: 0 16px; }
 .card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -109,4 +109,39 @@ pre { white-space: pre-wrap; background: var(--bg); padding: 10px; border-radius
 @media (max-width: 600px) {
   .stat b { font-size: 1.2rem; }
   th, td { padding: 6px 4px; font-size: 0.9rem; }
+}
+.center { text-align: center; }
+.google-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 10px 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: #1f1f1f;
+  font-weight: 600;
+  text-decoration: none;
+}
+.google-btn:hover { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); }
+a { color: var(--primary); }
+label.row { flex-direction: row !important; align-items: center; gap: 8px; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 20px 0; }
+.stats.chomesh { margin-top: -4px; }
+header .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+html, body { overflow-x: hidden; }
+main, .card, .tab { min-width: 0; }
+header { flex-wrap: wrap; }
+.tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.tabs button { white-space: nowrap; flex-shrink: 0; }
+td, th { white-space: nowrap; }
+td:nth-child(2) { white-space: normal; }
+@media (max-width: 600px) {
+  .stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { padding: 10px; }
+  header h1 { font-size: 1.1rem; }
+  header button { padding: 6px 10px; }
+  #userName { display: none; }
+  .card { padding: 12px; }
 }

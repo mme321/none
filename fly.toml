@@ -1,0 +1,30 @@
+# פריסה ל-Fly.io – ראו docs/DEPLOY.md
+app = "maaser"            # שנו לשם פנוי
+primary_region = "fra"    # אין אזור בישראל; פרנקפורט הקרוב ביותר
+
+[build]
+
+[env]
+  PUBLIC_URL = "https://maaser.fly.dev"   # עדכנו לכתובת האמיתית (או לדומיין שלכם)
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"   # המפתחות לפענוח נשמרים בזיכרון; עצירה = כולם צריכים לפתוח שוב את הכספת
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    path = "/api/config"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+
+[mounts]
+  source = "maaser_data"
+  destination = "/data"
+
+[[vm]]
+  memory = "1gb"     # כרומיום צריך זיכרון
+  cpu_kind = "shared"
+  cpus = 1
