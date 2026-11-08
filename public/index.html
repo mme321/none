@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>מחשבון מעשר</title>
-  <meta name="description" content="חישוב מעשר וחומש עם משיכת נתונים אוטומטית מהבנקים" />
+  <meta name="description" content="חישוב מעשר וחומש לפי התנועות בחשבונות הבנק – בישראל ובארה&quot;ב" />
   <meta name="theme-color" content="#2459d6" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" type="image/png" />
@@ -15,8 +15,7 @@
   <header>
     <h1>מחשבון מעשר</h1>
     <div class="header-actions">
-      <button id="syncBtn" class="primary" hidden>סנכרון מהבנקים</button>
-      <button id="lockBtn" hidden>נעילה</button>
+      <button id="syncBtn" class="primary" hidden>רענון נתונים</button>
       <span id="userName" class="small muted" hidden></span>
       <button id="logoutBtn" hidden>יציאה</button>
     </div>
@@ -25,44 +24,38 @@
   <!-- מסך התחברות -->
   <section id="loginScreen" class="card narrow center" hidden>
     <h2>ברוכים הבאים למחשבון המעשר</h2>
-    <p class="muted">חישוב מעשר וחומש אוטומטי לפי התנועות בחשבונות הבנק וכרטיסי האשראי שלך.</p>
-    <a class="google-btn" href="/auth/google">
+    <p class="muted">חישוב מעשר וחומש אוטומטי לפי התנועות בחשבונות הבנק וכרטיסי האשראי – בישראל ובארה"ב.</p>
+    <a class="google-btn" href="/auth/google" id="googleBtn">
       <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.5z"/></svg>
       התחברות עם Google
     </a>
+    <form id="devLoginForm" class="inline-form center-row" hidden>
+      <input name="email" type="email" placeholder="מייל (מצב פיתוח)" required />
+      <button type="submit">כניסת פיתוח</button>
+    </form>
     <p id="loginError" class="error"></p>
     <p class="small"><a href="privacy.html">מדיניות פרטיות</a></p>
   </section>
 
-  <!-- מסך סיסמת-על -->
-  <section id="lockScreen" class="card narrow" hidden>
-    <h2 id="lockTitle">פתיחת הכספת</h2>
-    <p id="lockHint" class="muted"></p>
-    <form id="lockForm">
-      <input type="password" id="masterPw" placeholder="סיסמת הצפנה" autocomplete="current-password" required />
-      <button class="primary" type="submit" id="lockSubmit">פתיחה</button>
-    </form>
-    <p id="lockError" class="error"></p>
-    <p class="small"><a href="#" id="forgotPw" hidden>שכחתי את הסיסמה</a></p>
-  </section>
-
   <main id="main" hidden>
-    <!-- סיכום -->
+    <p id="banner" class="banner" hidden></p>
+
     <section class="stats">
       <div class="stat"><span>סך הכנסות</span><b id="sIncome">—</b></div>
       <div class="stat"><span id="sDueLabel">מעשר</span><b id="sDue">—</b></div>
       <div class="stat"><span>נתרם עד כה</span><b id="sDonated">—</b></div>
       <div class="stat highlight"><span id="sBalanceLabel">נשאר לתת</span><b id="sBalance">—</b></div>
     </section>
-    <section class="stats chomesh" id="chomeshStats" hidden>
+    <section class="stats" id="chomeshStats" hidden>
       <div class="stat"><span>חומש (20%)</span><b id="sDueC">—</b></div>
       <div class="stat highlight"><span id="sBalanceCLabel">נשאר לתת לפי חומש</span><b id="sBalanceC">—</b></div>
     </section>
+    <p id="currencyNote" class="small muted"></p>
 
     <nav class="tabs">
       <button data-tab="monthly" class="active">לפי חודשים</button>
       <button data-tab="transactions">תנועות</button>
-      <button data-tab="accounts">חשבונות</button>
+      <button data-tab="banks">חיבור בנקים</button>
       <button data-tab="rules">כללי סיווג</button>
       <button data-tab="settings">הגדרות</button>
     </nav>
@@ -74,7 +67,7 @@
           <tbody id="monthlyBody"></tbody>
         </table>
       </div>
-      <p class="muted" id="monthlyEmpty">אין עדיין נתונים. הוסיפו חשבון בנק ולחצו "סנכרון מהבנקים".</p>
+      <p class="muted" id="monthlyEmpty">אין עדיין נתונים. חברו חשבון בנק בלשונית "חיבור בנקים".</p>
     </section>
 
     <section id="tab-transactions" class="card tab" hidden>
@@ -96,6 +89,10 @@
         </select>
         <input name="date" type="date" required />
         <input name="amount" type="number" step="0.01" min="0.01" placeholder="סכום" required />
+        <select name="currency">
+          <option value="ILS">₪</option>
+          <option value="USD">$</option>
+        </select>
         <input name="description" placeholder="תיאור" />
         <button class="primary" type="submit">שמירה</button>
       </form>
@@ -108,17 +105,24 @@
       </div>
     </section>
 
-    <section id="tab-accounts" class="card tab" hidden>
-      <ul id="accountList" class="list"></ul>
-      <h3>הוספת חשבון בנק / כרטיס אשראי</h3>
-      <form id="accountForm" class="stack">
-        <select id="companySelect" required></select>
-        <input id="accountLabel" placeholder="שם לתצוגה (לא חובה)" />
-        <div id="credFields" class="stack"></div>
-        <button class="primary" type="submit">הוספה</button>
-      </form>
-      <p class="muted small">פרטי ההתחברות נשמרים מוצפנים במחשב שלך בלבד ומשמשים רק להתחברות לאתר הבנק.</p>
-      <div id="syncLogBox" hidden><h3>יומן סנכרון</h3><pre id="syncLog"></pre></div>
+    <section id="tab-banks" class="card tab" hidden>
+      <div class="connect-grid">
+        <div class="connect-card">
+          <h3>🇮🇱 בנק או כרטיס אשראי בישראל</h3>
+          <p class="small muted">דרך תקן הבנקאות הפתוחה של בנק ישראל. מאשרים גישה לקריאה בלבד, ישירות מול הבנק.</p>
+          <button class="primary" id="connectIL">חיבור בנק ישראלי</button>
+          <p class="small muted" id="ilDisabled" hidden>החיבור לבנקים בישראל עדיין לא הוגדר בשרת.</p>
+        </div>
+        <div class="connect-card">
+          <h3>🇺🇸 Bank in the US</h3>
+          <p class="small muted">TD Bank ועוד אלפי בנקים בארה"ב, דרך Plaid. ההתחברות נעשית בחלון של הבנק/Plaid.</p>
+          <button class="primary" id="connectUS">Connect US bank</button>
+          <p class="small muted" id="usDisabled" hidden>החיבור לבנקים בארה"ב עדיין לא הוגדר בשרת.</p>
+        </div>
+      </div>
+      <h3>החיבורים שלי</h3>
+      <ul id="connectionList" class="list"></ul>
+      <p class="muted small">האפליקציה לא רואה ולא שומרת סיסמאות לבנק. אפשר לבטל גישה בכל רגע כאן, וגם באתר הבנק.</p>
     </section>
 
     <section id="tab-rules" class="card tab" hidden>
@@ -146,11 +150,15 @@
           </select>
         </label>
         <label class="row"><input type="checkbox" name="showChomesh" /> להציג גם חישוב חומש (20%) לצד המעשר</label>
-        <label>לחשב החל מתאריך <input type="date" name="startDate" /></label>
+        <label>מטבע לחישוב
+          <select name="baseCurrency">
+            <option value="ILS">שקל (₪)</option>
+            <option value="USD">דולר ($)</option>
+          </select>
+        </label>
+        <label>לחשב החל מתאריך <input type="date" name="startDate" required /></label>
         <label>יתרת פתיחה (חוב מעשר קודם; מספר שלילי = זכות)
           <input type="number" step="0.01" name="openingBalance" /></label>
-        <label>סנכרון אוטומטי כל (שעות, 0 = כבוי)
-          <input type="number" min="0" name="autoSyncHours" /></label>
         <button class="primary" type="submit">שמירה</button>
         <p id="settingsMsg" class="muted"></p>
       </form>

@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 :root {
   --bg: #f5f6f8;
   --card: #ffffff;
@@ -145,3 +146,13 @@ td:nth-child(2) { white-space: normal; }
   #userName { display: none; }
   .card { padding: 12px; }
 }
+.banner { padding: 10px 14px; border-radius: 10px; margin: 0 0 12px; border: 1px solid var(--border); background: var(--card); }
+.banner.ok { border-color: var(--pos); }
+.banner.error { border-color: var(--neg); color: var(--neg); }
+.connect-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.connect-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.connect-card h3 { margin: 0 0 6px; font-size: 1.05rem; }
+.badge { display: inline-block; font-size: 0.75rem; padding: 1px 8px; border-radius: 999px; margin-inline-start: 6px; background: var(--highlight); }
+.badge.error, .badge.reauth { color: var(--neg); }
+.btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.center-row { justify-content: center; }

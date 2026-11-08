@@ -1,19 +1,21 @@
 'use strict';
 const $ = (s) => document.querySelector(s);
-const nis = (n) =>
-  (Number(n) || 0).toLocaleString('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 2 });
+const SYMBOL = { ILS: '₪', USD: '$' };
+const money = (n, cur = 'ILS') =>
+  (Number(n) || 0).toLocaleString('he-IL', { style: 'currency', currency: cur, maximumFractionDigits: 2 });
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const fmtDate = (d) => new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('he-IL');
 
 const TYPE_LABELS = { income: 'הכנסה', donation: 'תרומה', expense: 'הוצאה', ignore: 'לא נספר' };
+const STATUS_LABELS = { active: '', error: 'שגיאה', reauth: 'נדרש חיבור מחדש' };
+let config = null;
 let state = null;
 
 async function api(method, url, body) {
-  const res = await fetch(url, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : {},
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const headers = { 'X-Requested-With': 'fetch' };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const res = await fetch(url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && data.login) {
     showLogin();
@@ -23,53 +25,63 @@ async function api(method, url, body) {
   return data;
 }
 
+function banner(text, kind = 'info') {
+  const b = $('#banner');
+  b.hidden = !text;
+  b.textContent = text || '';
+  b.className = 'banner ' + kind;
+}
+
 function showLogin() {
-  for (const id of ['#lockScreen', '#main', '#syncBtn', '#lockBtn', '#logoutBtn', '#userName']) $(id).hidden = true;
+  for (const id of ['#main', '#syncBtn', '#logoutBtn', '#userName']) $(id).hidden = true;
   $('#loginScreen').hidden = false;
+  $('#googleBtn').hidden = !config?.googleLogin;
+  $('#devLoginForm').hidden = !config?.devLogin;
 }
 
 async function refresh() {
   state = await api('GET', '/api/state');
   $('#loginScreen').hidden = true;
-  $('#logoutBtn').hidden = !state.googleLogin;
-  $('#userName').hidden = !state.user.email;
+  $('#main').hidden = false;
+  $('#syncBtn').hidden = !state.connections.length;
+  $('#logoutBtn').hidden = false;
+  $('#userName').hidden = false;
   $('#userName').textContent = state.user.name || state.user.email;
-  $('#accountEmail').textContent = state.user.email ? `מחובר כ-${state.user.email}` : 'מצב מקומי (ללא התחברות)';
-  const locked = !state.unlocked;
-  $('#lockScreen').hidden = !locked;
-  $('#main').hidden = locked;
-  $('#syncBtn').hidden = locked;
-  $('#lockBtn').hidden = locked;
-  if (locked) {
-    $('#forgotPw').hidden = !state.hasVault;
-    $('#lockTitle').textContent = state.hasVault ? 'פתיחת הכספת' : 'יצירת סיסמת הצפנה';
-    $('#lockHint').textContent = state.hasVault
-      ? 'הזינו את סיסמת ההצפנה שלכם כדי לגשת לפרטי הבנקים.'
-      : 'בחרו סיסמת הצפנה. פרטי ההתחברות לבנקים יוצפנו בעזרתה, והיא לא נשמרת בשום מקום – גם לא אצלנו. אל תשכחו אותה.';
-    $('#lockSubmit').textContent = state.hasVault ? 'פתיחה' : 'יצירה';
-    $('#masterPw').autocomplete = state.hasVault ? 'current-password' : 'new-password';
-    return;
-  }
+  $('#accountEmail').textContent = `מחובר כ-${state.user.email}`;
   renderSummary();
-  renderAccounts();
+  renderConnections();
   renderSettings();
-  $('#syncBtn').disabled = state.syncing;
-  $('#syncBtn').textContent = state.syncing ? 'מסנכרן...' : 'סנכרון מהבנקים';
 }
 
 function renderSummary() {
   const s = state.summary;
-  $('#sIncome').textContent = nis(s.income);
+  const cur = s.currency;
+  const m = (n) => money(n, cur);
+  $('#sIncome').textContent = m(s.income);
   $('#sDueLabel').textContent = `${s.percent === 20 ? 'חומש' : 'מעשר'} (${s.percent}%)`;
-  $('#sDue').textContent = nis(s.due);
-  $('#sDonated').textContent = nis(s.donated);
+  $('#sDue').textContent = m(s.due);
+  $('#sDonated').textContent = m(s.donated);
   $('#sBalanceLabel').textContent = s.balance >= 0 ? 'נשאר לתת' : 'נתת מעבר (זכות)';
-  $('#sBalance').textContent = nis(Math.abs(s.balance));
+  $('#sBalance').textContent = m(Math.abs(s.balance));
   const showC = state.settings.showChomesh && s.percent !== 20;
   $('#chomeshStats').hidden = !showC;
-  $('#sDueC').textContent = nis(s.chomesh.due);
+  $('#sDueC').textContent = m(s.chomesh.due);
   $('#sBalanceCLabel').textContent = s.chomesh.balance >= 0 ? 'נשאר לתת לפי חומש' : 'זכות לפי חומש';
-  $('#sBalanceC').textContent = nis(Math.abs(s.chomesh.balance));
+  $('#sBalanceC').textContent = m(Math.abs(s.chomesh.balance));
+
+  // פירוט לפי מטבע (כשיש יותר ממטבע אחד)
+  const curs = Object.entries(s.byCurrency);
+  const NAMES = { ILS: 'בשקלים', USD: 'בדולרים' };
+  let note = '';
+  if (curs.length > 1 || (curs.length === 1 && curs[0][0] !== cur)) {
+    note = curs
+      .map(([c, v]) => `${NAMES[c] || esc(c)}: הכנסות <bdi>${money(v.income, c)}</bdi>, תרומות <bdi>${money(v.donated, c)}</bdi>`)
+      .join(' · ');
+    note += `. הסכומים למעלה הומרו ל${NAMES[cur] ? NAMES[cur].slice(1) : esc(cur)} לפי שער היום של כל תנועה.`;
+  }
+  if (s.unconverted) note += ` ⚠️ ${s.unconverted} תנועות לא נכללו (אין שער חליפין).`;
+  $('#currencyNote').innerHTML = note;
+
   const label = s.percent === 20 ? 'חומש' : 'מעשר';
   $('#monthlyHead').innerHTML = `<tr><th>חודש</th><th>הכנסות</th><th>${label}</th><th>נתרם</th><th>יתרה מצטברת</th>
     ${showC ? '<th>חומש</th><th>יתרה (חומש)</th>' : ''}</tr>`;
@@ -79,52 +91,53 @@ function renderSummary() {
     .slice()
     .reverse()
     .map(
-      (m) => `<tr><td>${m.month}</td><td>${nis(m.income)}</td><td>${nis(m.due)}</td>
-        <td>${nis(m.donated)}</td><td class="${cls(m.balance)}">${nis(m.balance)}</td>
-        ${showC ? `<td>${nis(m.dueChomesh)}</td><td class="${cls(m.balanceChomesh)}">${nis(m.balanceChomesh)}</td>` : ''}</tr>`
+      (r) => `<tr><td>${r.month}</td><td>${m(r.income)}</td><td>${m(r.due)}</td>
+        <td>${m(r.donated)}</td><td class="${cls(r.balance)}">${m(r.balance)}</td>
+        ${showC ? `<td>${m(r.dueChomesh)}</td><td class="${cls(r.balanceChomesh)}">${m(r.balanceChomesh)}</td>` : ''}</tr>`
     )
     .join('');
 }
 
-function renderAccounts() {
-  const sel = $('#companySelect');
-  if (!sel.options.length) {
-    const groups = { bank: 'בנקים', card: 'כרטיסי אשראי' };
-    sel.innerHTML =
-      '<option value="">בחרו בנק / חברת אשראי</option>' +
-      Object.entries(groups)
-        .map(
-          ([type, label]) =>
-            `<optgroup label="${label}">` +
-            Object.entries(state.companies)
-              .filter(([, c]) => c.type === type)
-              .map(([id, c]) => `<option value="${id}">${esc(c.name)}</option>`)
-              .join('') +
-            '</optgroup>'
-        )
-        .join('');
-  }
-  $('#accountList').innerHTML =
-    state.accounts
-      .map(
-        (a) => `<li>
-        <div><b>${esc(a.label)}</b> <span class="muted">(${esc(a.companyName)})</span><br/>
-        <span class="small muted">${a.lastSync ? 'סונכרן לאחרונה: ' + new Date(a.lastSync).toLocaleString('he-IL') : 'עוד לא סונכרן'}</span>
-        ${a.lastError ? `<br/><span class="small error">${esc(a.lastError)}</span>` : ''}</div>
-        <div><button data-sync="${a.id}">סנכרון</button> <button data-del-acc="${a.id}" class="danger">מחיקה</button></div>
-      </li>`
-      )
-      .join('') || '<li class="muted">עוד לא נוספו חשבונות.</li>';
+function renderConnections() {
+  $('#connectIL').hidden = !state.providers.saltedge;
+  $('#ilDisabled').hidden = state.providers.saltedge;
+  $('#connectUS').hidden = !state.providers.plaid;
+  $('#usDisabled').hidden = state.providers.plaid;
+  $('#connectionList').innerHTML =
+    state.connections
+      .map((c) => {
+        const accounts = c.accounts
+          .map((a) => `${esc(a.name || 'חשבון')}${a.mask ? ' ••' + esc(a.mask) : ''}${a.kind === 'card' ? ' (אשראי)' : ''}`)
+          .join(', ');
+        const status = STATUS_LABELS[c.status];
+        return `<li>
+          <div><b>${esc(c.institution_name || (c.provider === 'plaid' ? 'US bank' : 'בנק'))}</b>
+            <span class="small muted">${c.provider === 'plaid' ? '🇺🇸 Plaid' : '🇮🇱 Open Banking'}</span>
+            ${status ? `<span class="badge ${c.status}">${status}</span>` : ''}<br/>
+            <span class="small muted">${accounts || 'עדיין לא נמשכו חשבונות'}</span><br/>
+            <span class="small muted">${c.last_sync ? 'עודכן: ' + new Date(c.last_sync).toLocaleString('he-IL') : 'ממתין לנתונים מהבנק...'}</span>
+            ${c.last_error ? `<br/><span class="small error">${esc(c.last_error)}</span>` : ''}</div>
+          <div class="btns">
+            ${c.status === 'reauth' && c.provider === 'plaid' ? `<button data-reauth="${c.id}" class="primary">חיבור מחדש</button>` : ''}
+            ${c.status === 'reauth' && c.provider === 'saltedge' ? `<button data-reconnect-il="1" class="primary">חיבור מחדש</button>` : ''}
+            <button data-sync="${c.id}">רענון</button>
+            <button data-del-conn="${c.id}" class="danger">ניתוק</button>
+          </div>
+        </li>`;
+      })
+      .join('') || '<li class="muted">עוד לא חוברו בנקים.</li>';
 }
 
 function renderSettings() {
   const f = $('#settingsForm');
   if (f.dataset.loaded) return;
-  f.percent.value = String(state.settings.percent);
-  f.showChomesh.checked = !!state.settings.showChomesh;
-  f.startDate.value = state.settings.startDate;
-  f.openingBalance.value = state.settings.openingBalance;
-  f.autoSyncHours.value = state.settings.autoSyncHours;
+  const s = state.settings;
+  f.percent.value = String(s.percent);
+  f.showChomesh.checked = !!s.showChomesh;
+  f.baseCurrency.value = s.baseCurrency;
+  f.startDate.value = s.startDate;
+  f.openingBalance.value = s.openingBalance;
+  $('#manualForm').currency.value = s.baseCurrency;
   f.dataset.loaded = '1';
 }
 
@@ -136,21 +149,24 @@ async function loadTransactions() {
   $('#txBody').innerHTML =
     list
       .map((t) => {
+        const manualOverride = !!t.type_override;
         const opts = ['auto', 'income', 'donation', 'expense', 'ignore']
           .map((v) => {
-            const selected = (t.reason === 'manual' ? t.type : 'auto') === v ? 'selected' : '';
+            const selected = (manualOverride ? t.type : 'auto') === v ? 'selected' : '';
             let label = TYPE_LABELS[v];
-            if (v === 'auto') label = t.reason === 'manual' ? 'אוטומטי' : `אוטומטי (${TYPE_LABELS[t.type]})`;
+            if (v === 'auto') label = manualOverride ? 'אוטומטי' : `אוטומטי (${TYPE_LABELS[t.type]})`;
             return `<option value="${v}" ${selected}>${label}</option>`;
           })
           .join('');
+        const manual = t.provider === 'manual';
+        const acct = manual ? 'ידני' : `${esc(t.institution)}${t.mask ? ' ••' + esc(t.mask) : ''}`;
         return `<tr class="t-${t.type}">
-          <td>${new Date(t.date).toLocaleDateString('he-IL')}</td>
+          <td>${fmtDate(t.date)}</td>
           <td>${esc(t.description)}${t.memo ? `<br/><span class="small muted">${esc(t.memo)}</span>` : ''}</td>
-          <td class="small">${esc(t.accountLabel)}</td>
-          <td class="${t.amount < 0 ? 'neg' : 'pos'}" dir="ltr">${nis(t.amount)}</td>
-          <td>${t.source === 'manual' ? TYPE_LABELS[t.type] : `<select data-tx="${t.id}">${opts}</select>`}</td>
-          <td>${t.source === 'manual' ? `<button class="danger small" data-del-tx="${t.id}">✕</button>` : ''}</td>
+          <td class="small">${acct}</td>
+          <td class="${t.amount < 0 ? 'neg' : 'pos'}" dir="ltr">${money(t.amount, t.currency)}</td>
+          <td>${manual ? TYPE_LABELS[t.type] : `<select data-tx="${t.id}">${opts}</select>`}</td>
+          <td>${manual ? `<button class="danger small" data-del-tx="${t.id}">✕</button>` : ''}</td>
         </tr>`;
       })
       .join('') || '<tr><td colspan="6" class="muted">אין תנועות.</td></tr>';
@@ -173,91 +189,113 @@ function showTab(name) {
   if (name === 'rules') loadRules();
 }
 
-async function sync(accountId) {
-  $('#syncBtn').disabled = true;
-  $('#syncBtn').textContent = 'מסנכרן...';
-  $('#syncLogBox').hidden = false;
-  $('#syncLog').textContent = 'מתחבר לבנק... (זה יכול לקחת דקה-שתיים)';
-  const poll = setInterval(async () => {
-    const { log } = await api('GET', '/api/sync/log').catch(() => ({ log: [] }));
-    if (log.length) $('#syncLog').textContent = log.join('\n');
-  }, 2000);
+async function afterChange() {
+  await refresh();
+  if (!$('#tab-transactions').hidden) loadTransactions();
+}
+
+async function sync(connectionId) {
+  const btn = $('#syncBtn');
+  btn.disabled = true;
+  btn.textContent = 'מרענן...';
   try {
-    const { log } = await api('POST', '/api/sync', accountId ? { accountId } : {});
-    $('#syncLog').textContent = log.join('\n') || 'אין חשבונות לסנכרון.';
+    const { results } = await api('POST', '/api/sync', connectionId ? { connectionId: Number(connectionId) } : {});
+    const failed = results.filter((r) => !r.ok);
+    const added = results.reduce((n, r) => n + (r.added || 0), 0);
+    banner(failed.length ? `${failed.length} חיבורים נכשלו – ראו בלשונית "חיבור בנקים"` : `עודכן ✓ (${added} תנועות חדשות)`, failed.length ? 'error' : 'ok');
   } catch (e) {
-    $('#syncLog').textContent = e.message;
+    banner(e.message, 'error');
   } finally {
-    clearInterval(poll);
-    await refresh();
-    if (!$('#tab-transactions').hidden) loadTransactions();
+    btn.disabled = false;
+    btn.textContent = 'רענון נתונים';
+    afterChange();
   }
 }
 
-// ---------- אירועים ----------
-$('#lockForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  $('#lockError').textContent = '';
-  try {
-    await api('POST', state.hasVault ? '/api/unlock' : '/api/setup', { password: $('#masterPw').value });
-    $('#masterPw').value = '';
-    await refresh();
-  } catch (err) {
-    $('#lockError').textContent = err.message;
-  }
-});
+// ---------- Plaid (ארה"ב) ----------
+function loadPlaidScript() {
+  if (window.Plaid) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('לא ניתן לטעון את Plaid'));
+    document.head.appendChild(s);
+  });
+}
 
-$('#lockBtn').addEventListener('click', async () => {
-  await api('POST', '/api/lock');
-  refresh();
+async function openPlaid({ connectionId, receivedRedirectUri } = {}) {
+  await loadPlaidScript();
+  let token;
+  if (receivedRedirectUri) {
+    // חזרה מבנק עם OAuth (למשל TD Bank) – ממשיכים עם אותו link token
+    token = sessionStorage.getItem('plaidLinkToken');
+    connectionId = sessionStorage.getItem('plaidReauthId') || undefined;
+    if (!token) throw new Error('פג תוקף החיבור, נסו שוב');
+  } else {
+    token = (await api('POST', '/api/plaid/link-token', connectionId ? { connectionId } : {})).linkToken;
+    sessionStorage.setItem('plaidLinkToken', token);
+    if (connectionId) sessionStorage.setItem('plaidReauthId', connectionId);
+    else sessionStorage.removeItem('plaidReauthId');
+  }
+  const handler = window.Plaid.create({
+    token,
+    receivedRedirectUri,
+    onSuccess: async (publicToken) => {
+      sessionStorage.removeItem('plaidLinkToken');
+      banner('מושך נתונים מהבנק...', 'info');
+      try {
+        if (connectionId) await api('POST', `/api/connections/${connectionId}/reconnected`, {});
+        else await api('POST', '/api/plaid/exchange', { publicToken });
+        banner('הבנק חובר ✓ ייתכן שההיסטוריה המלאה תגיע תוך כמה דקות.', 'ok');
+      } catch (e) {
+        banner(e.message, 'error');
+      }
+      afterChange();
+    },
+    onExit: (err) => {
+      if (err) banner(err.display_message || err.error_message || 'החיבור בוטל', 'error');
+    },
+  });
+  handler.open();
+}
+
+// ---------- Salt Edge (ישראל) ----------
+async function connectIsrael() {
+  const { url } = await api('POST', '/api/saltedge/connect', {});
+  location.href = url;
+}
+
+// ---------- אירועים ----------
+$('#devLoginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await api('POST', '/auth/dev', { email: e.target.email.value });
+    location.reload();
+  } catch (err) {
+    $('#loginError').textContent = err.message;
+  }
 });
 
 $('#syncBtn').addEventListener('click', () => sync());
+$('#connectUS').addEventListener('click', () => openPlaid().catch((e) => banner(e.message, 'error')));
+$('#connectIL').addEventListener('click', () => connectIsrael().catch((e) => banner(e.message, 'error')));
 
 document.querySelector('.tabs').addEventListener('click', (e) => {
   if (e.target.dataset.tab) showTab(e.target.dataset.tab);
-});
-
-$('#companySelect').addEventListener('change', () => {
-  const c = state.companies[$('#companySelect').value];
-  $('#credFields').innerHTML = c
-    ? c.fields
-        .map(
-          (f) =>
-            `<input name="${f}" placeholder="${esc(state.fieldLabels[f] || f)}" required
-              type="${f === 'password' ? 'password' : 'text'}" autocomplete="off" />`
-        )
-        .join('')
-    : '';
-});
-
-$('#accountForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const credentials = {};
-  $('#credFields').querySelectorAll('input').forEach((i) => (credentials[i.name] = i.value));
-  try {
-    await api('POST', '/api/accounts', {
-      companyId: $('#companySelect').value,
-      label: $('#accountLabel').value,
-      credentials,
-    });
-    e.target.reset();
-    $('#credFields').innerHTML = '';
-    await refresh();
-  } catch (err) {
-    alert(err.message);
-  }
 });
 
 document.addEventListener('click', async (e) => {
   const d = e.target.dataset;
   try {
     if (d.sync) return sync(d.sync);
-    if (d.delAcc) {
-      if (!confirm('למחוק את החשבון?')) return;
-      const purge = confirm('למחוק גם את כל התנועות שנמשכו מהחשבון הזה?');
-      await api('DELETE', `/api/accounts/${d.delAcc}${purge ? '?purge=1' : ''}`);
-      return refresh();
+    if (d.reauth) return openPlaid({ connectionId: d.reauth });
+    if (d.reconnectIl) return connectIsrael();
+    if (d.delConn) {
+      if (!confirm('לנתק את החיבור לבנק? הגישה תבוטל גם אצל הספק.')) return;
+      const purge = confirm('למחוק גם את התנועות שכבר נמשכו מהחיבור הזה? (ביטול = לשמור אותן לחישוב)');
+      await api('DELETE', `/api/connections/${d.delConn}${purge ? '?purge=1' : ''}`);
+      return afterChange();
     }
     if (d.delRule) {
       await api('DELETE', `/api/rules/${d.delRule}`);
@@ -266,19 +304,17 @@ document.addEventListener('click', async (e) => {
     }
     if (d.delTx) {
       await api('DELETE', `/api/transactions/${d.delTx}`);
-      loadTransactions();
-      return refresh();
+      return afterChange();
     }
   } catch (err) {
-    alert(err.message);
+    banner(err.message, 'error');
   }
 });
 
 $('#txBody').addEventListener('change', async (e) => {
   if (!e.target.dataset.tx) return;
   await api('PUT', `/api/transactions/${e.target.dataset.tx}/type`, { type: e.target.value });
-  await refresh();
-  loadTransactions();
+  afterChange();
 });
 
 let searchTimer;
@@ -302,14 +338,14 @@ $('#manualForm').addEventListener('submit', async (e) => {
       type: f.type.value,
       date: f.date.value,
       amount: f.amount.value,
+      currency: f.currency.value,
       description: f.description.value,
     });
     f.amount.value = '';
     f.description.value = '';
-    await refresh();
-    loadTransactions();
+    afterChange();
   } catch (err) {
-    alert(err.message);
+    banner(err.message, 'error');
   }
 });
 
@@ -321,7 +357,7 @@ $('#ruleForm').addEventListener('submit', async (e) => {
     loadRules();
     refresh();
   } catch (err) {
-    alert(err.message);
+    banner(err.message, 'error');
   }
 });
 
@@ -332,9 +368,9 @@ $('#settingsForm').addEventListener('submit', async (e) => {
     await api('PUT', '/api/settings', {
       percent: f.percent.value,
       showChomesh: f.showChomesh.checked,
+      baseCurrency: f.baseCurrency.value,
       startDate: f.startDate.value,
       openingBalance: f.openingBalance.value,
-      autoSyncHours: f.autoSyncHours.value,
     });
     $('#settingsMsg').textContent = 'נשמר ✓';
     setTimeout(() => ($('#settingsMsg').textContent = ''), 2000);
@@ -345,39 +381,45 @@ $('#settingsForm').addEventListener('submit', async (e) => {
 });
 
 $('#logoutBtn').addEventListener('click', async () => {
-  await api('POST', '/auth/logout').catch(() => {});
+  await api('POST', '/auth/logout', {}).catch(() => {});
   location.href = '/';
 });
 
-$('#forgotPw').addEventListener('click', async (e) => {
-  e.preventDefault();
-  if (!confirm('אי אפשר לשחזר את סיסמת ההצפנה. אפשר לאפס אותה – פרטי ההתחברות לבנקים יימחקו ותצטרכו להזין אותם מחדש (התנועות והחישובים יישמרו). להמשיך?')) return;
-  try {
-    await api('POST', '/api/vault/reset', { confirm: true });
-    refresh();
-  } catch (err) {
-    alert(err.message);
-  }
-});
-
 $('#deleteUserBtn').addEventListener('click', async () => {
-  if (!confirm('למחוק לצמיתות את החשבון, פרטי הבנקים וכל התנועות? אי אפשר לבטל.')) return;
+  if (!confirm('למחוק לצמיתות את החשבון, את כל החיבורים לבנקים ואת כל התנועות? אי אפשר לבטל.')) return;
   try {
     await api('POST', '/api/account/delete', { confirm: true });
     location.href = '/';
   } catch (err) {
-    alert(err.message);
+    banner(err.message, 'error');
   }
 });
 
-const loginError = new URLSearchParams(location.search).get('login_error');
-if (loginError) {
-  $('#loginError').textContent = loginError;
-  history.replaceState(null, '', '/');
-}
+// ---------- טעינה ----------
+(async () => {
+  const params = new URLSearchParams(location.search);
+  const loginError = params.get('login_error');
+  if (loginError) $('#loginError').textContent = loginError;
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  config = await fetch('/api/config').then((r) => r.json());
+  if (!config.user) return showLogin();
 
-refresh().catch((e) => {
-  if ($('#loginScreen').hidden) alert(e.message);
-});
+  await refresh();
+  if (location.pathname === '/plaid-oauth' && params.get('oauth_state_id')) {
+    const uri = location.href;
+    history.replaceState(null, '', '/');
+    showTab('banks');
+    openPlaid({ receivedRedirectUri: uri }).catch((e) => banner(e.message, 'error'));
+  } else if (params.get('connected') === 'saltedge') {
+    history.replaceState(null, '', '/');
+    showTab('banks');
+    banner('מושך נתונים מהבנק...', 'info');
+    const connectionId = params.get('connection_id');
+    if (connectionId) await api('POST', '/api/saltedge/return', { connectionId }).catch(() => {});
+    banner('הבנק חובר ✓ הנתונים יתעדכנו אוטומטית.', 'ok');
+    afterChange();
+  } else if (loginError) {
+    history.replaceState(null, '', '/');
+  }
+})().catch((e) => banner(e.message, 'error'));

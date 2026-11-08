@@ -47,5 +47,6 @@ fly secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
 
 לבדיקה מקומית:
 ```bash
-GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... PUBLIC_URL=http://localhost:3000 npm start
+cp .env.example .env   # מלאו GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
+npm run dev
 ```

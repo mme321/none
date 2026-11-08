@@ -13,6 +13,10 @@ const DEFAULT_RULES = [
   { id: 'r-donation1', pattern: 'תרומ', type: 'donation' },
   { id: 'r-donation2', pattern: 'צדק', type: 'donation' },
   { id: 'r-donation3', pattern: 'גמ"ח', type: 'donation' },
+  // בנקים בארה"ב
+  { id: 'r-donation-en1', pattern: 'donation', type: 'donation' },
+  { id: 'r-donation-en2', pattern: 'charity', type: 'donation' },
+  { id: 'r-donation-en3', pattern: 'tzedak', type: 'donation' },
 ];
 
 function matchRule(tx, rules) {

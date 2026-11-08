@@ -1,38 +1,51 @@
-# העלאה לאינטרנט (Fly.io)
+# העלאה לענן (Fly.io + PostgreSQL)
 
-האפליקציה ארוזה כ-Docker (`Dockerfile`) עם כרומיום, כך שאפשר להריץ אותה בכל שירות שתומך ב-Docker.
-ההוראות כאן ל-Fly.io.
+## מה צריך
+| | איפה |
+|---|---|
+| שרת | Fly.io (או כל שירות שמריץ Docker: Render, Railway, Google Cloud Run) |
+| מסד נתונים | PostgreSQL 14+: Fly Managed Postgres, Neon, Supabase או Cloud SQL |
+| התחברות | Google OAuth ([GOOGLE_SETUP.md](GOOGLE_SETUP.md)) |
+| בנקים | Plaid ו/או Salt Edge ([BANKS.md](BANKS.md)) |
 
-## דרישות
-- חשבון ב-https://fly.io ו-[flyctl](https://fly.io/docs/flyctl/install/).
-- Client ID של Google (ראו [GOOGLE_SETUP.md](GOOGLE_SETUP.md)). **בלי זה השרת לא יעלה ברשת** – כדי שאף אחד לא יגיע לנתונים בלי התחברות.
-
-## שלבים
+## שלבים ב-Fly.io
 ```bash
 fly auth login
-# בחרו שם פנוי ועדכנו אותו ב-fly.toml (app = "..." וגם PUBLIC_URL)
-fly apps create maaser-me321
-fly volumes create maaser_data --region fra --size 1 -a maaser-me321
-fly secrets set -a maaser-me321 GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
+fly apps create maaser-me321          # שם פנוי; עדכנו גם ב-fly.toml
+
+# מסד נתונים מנוהל (או: צרו ב-Neon/Supabase והעתיקו את ה-connection string)
+fly mpg create --name maaser-db --region fra
+fly mpg attach maaser-db -a maaser-me321    # מגדיר DATABASE_URL אוטומטית
+
+fly secrets set -a maaser-me321 \
+  ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+  GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... \
+  PLAID_CLIENT_ID=... PLAID_SECRET=... \
+  SALTEDGE_APP_ID=... SALTEDGE_SECRET=... SALTEDGE_CALLBACK_PUBLIC_KEY="..."
+
 fly deploy -a maaser-me321
 ```
-הכתובת תהיה `https://maaser-me321.fly.dev`. הוסיפו אותה ב-Google Cloud כ-Redirect URI:
-`https://maaser-me321.fly.dev/auth/google/callback`.
+טבלאות המסד נוצרות אוטומטית בהפעלה הראשונה (מיגרציות).
 
-### דומיין משלכם (לא חובה)
+**שמרו את `ENCRYPTION_KEY` גם במקום בטוח.** בלעדיו אי אפשר לפענח את טוקני הגישה לבנקים,
+וכל המשתמשים יצטרכו לחבר את הבנקים מחדש.
+
+## אחרי הפריסה
+- ב-Google Cloud: Redirect URI `https://maaser-me321.fly.dev/auth/google/callback`
+- ב-Plaid: Redirect URI `https://maaser-me321.fly.dev/plaid-oauth`
+- ב-Salt Edge: כתובות ה-callbacks (ראו BANKS.md)
+- בדיקה: `https://maaser-me321.fly.dev/healthz` צריך להחזיר `{"ok":true}`
+
+## עלויות משוערות
+- Fly: מכונה של 512MB שנכבית כשאין שימוש. כמה דולרים בחודש.
+- Postgres מנוהל: מ-0$ (Neon/Supabase חינמי לפרויקט קטן) עד כ-40$ (Fly Managed Postgres).
+- Plaid ו-Salt Edge: לפי מספר חיבורים. ראו בדשבורד של כל ספק.
+
+## פיתוח מקומי
 ```bash
-fly certs add maaser.example.com -a maaser-me321
+docker run -d --name pg -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=maaser -p 5432:5432 postgres:16-alpine
+cp .env.example .env    # ומלאו ENCRYPTION_KEY
+npm install
+npm run dev             # http://localhost:3000 (עם DEV_LOGIN=1 אפשר להיכנס בלי Google)
+DATABASE_URL=postgres://postgres:pg@127.0.0.1:5432/maaser npm test
 ```
-ואז עדכנו את `PUBLIC_URL` ב-fly.toml ואת ה-Redirect URI ב-Google.
-
-## עלויות (בערך)
-מכונה עם 1GB זיכרון שרצה כל הזמן + דיסק 1GB: כ-6–7 דולר לחודש.
-
-## חשוב לדעת
-- **מיקום השרת**: אין ל-Fly אזור בישראל. חלק מהבנקים חוסמים או מבקשים אימות נוסף בהתחברות מחו"ל.
-  אם בנק מסוים נכשל בשרת אבל עובד מקומית, אפשר להריץ את האפליקציה על שרת בישראל
-  (למשל VPS ישראלי, או מחשב ביתי עם [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/))
-  – אותו Dockerfile עובד בכל מקום.
-- **הכספת נפתחת מחדש אחרי כל פריסה/הפעלה מחדש**: מפתחות הפענוח נשמרים רק בזיכרון, כך שאחרי עדכון
-  כל משתמש יתבקש להזין שוב את סיסמת ההצפנה (וגם להתחבר שוב). זה מכוון, לטובת האבטחה.
-- **גיבוי**: הנתונים נמצאים בדיסק `/data`. Fly שומר snapshot יומי של הדיסק כברירת מחדל.

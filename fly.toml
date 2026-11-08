@@ -1,30 +1,26 @@
 # פריסה ל-Fly.io – ראו docs/DEPLOY.md
-app = "maaser"            # שנו לשם פנוי
-primary_region = "fra"    # אין אזור בישראל; פרנקפורט הקרוב ביותר
-
-[build]
+app = "maaser-me321"        # שנו לשם פנוי
+primary_region = "fra"
 
 [env]
-  PUBLIC_URL = "https://maaser.fly.dev"   # עדכנו לכתובת האמיתית (או לדומיין שלכם)
+  PUBLIC_URL = "https://maaser-me321.fly.dev"   # עדכנו לכתובת האמיתית / לדומיין שלכם
+  PLAID_ENV = "sandbox"                         # production כשתקבלו גישה מ-Plaid
+  PLAID_REDIRECT_URI = "https://maaser-me321.fly.dev/plaid-oauth"
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "off"   # המפתחות לפענוח נשמרים בזיכרון; עצירה = כולם צריכים לפתוח שוב את הכספת
+  auto_stop_machines = "stop"   # נכבה כשאין תנועה; webhooks מהבנקים מעירים אותו
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
   [[http_service.checks]]
-    path = "/api/config"
+    path = "/healthz"
     interval = "30s"
     timeout = "5s"
-    grace_period = "20s"
-
-[mounts]
-  source = "maaser_data"
-  destination = "/data"
+    grace_period = "15s"
 
 [[vm]]
-  memory = "1gb"     # כרומיום צריך זיכרון
+  memory = "512mb"
   cpu_kind = "shared"
   cpus = 1
