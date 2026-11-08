@@ -1,0 +1,28 @@
+{
+  "name": "maaser-calculator",
+  "version": "1.0.0",
+  "description": "מחשבון מעשר עם משיכת נתונים אוטומטית מהבנקים",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "sync": "node scripts/sync.js",
+    "test": "node --test test/*.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mme321/none.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mme321/none/issues"
+  },
+  "homepage": "https://github.com/mme321/none#readme",
+  "dependencies": {
+    "express": "^5.3.0",
+    "israeli-bank-scrapers": "^6.13.0"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22.22.2"
+  }
+}

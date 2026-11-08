@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>מחשבון מעשר</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>מחשבון מעשר</h1>
+    <div class="header-actions">
+      <button id="syncBtn" class="primary" hidden>סנכרון מהבנקים</button>
+      <button id="lockBtn" hidden>נעילה</button>
+    </div>
+  </header>
+
+  <!-- מסך סיסמת-על -->
+  <section id="lockScreen" class="card narrow" hidden>
+    <h2 id="lockTitle">פתיחת האפליקציה</h2>
+    <p id="lockHint" class="muted"></p>
+    <form id="lockForm">
+      <input type="password" id="masterPw" placeholder="סיסמת-על" autocomplete="current-password" required />
+      <button class="primary" type="submit" id="lockSubmit">פתיחה</button>
+    </form>
+    <p id="lockError" class="error"></p>
+  </section>
+
+  <main id="main" hidden>
+    <!-- סיכום -->
+    <section class="stats">
+      <div class="stat"><span>סך הכנסות</span><b id="sIncome">—</b></div>
+      <div class="stat"><span id="sDueLabel">מעשר</span><b id="sDue">—</b></div>
+      <div class="stat"><span>נתרם עד כה</span><b id="sDonated">—</b></div>
+      <div class="stat highlight"><span id="sBalanceLabel">נשאר לתת</span><b id="sBalance">—</b></div>
+    </section>
+
+    <nav class="tabs">
+      <button data-tab="monthly" class="active">לפי חודשים</button>
+      <button data-tab="transactions">תנועות</button>
+      <button data-tab="accounts">חשבונות</button>
+      <button data-tab="rules">כללי סיווג</button>
+      <button data-tab="settings">הגדרות</button>
+    </nav>
+
+    <section id="tab-monthly" class="card tab">
+      <table>
+        <thead><tr><th>חודש</th><th>הכנסות</th><th>מעשר</th><th>נתרם</th><th>יתרה מצטברת</th></tr></thead>
+        <tbody id="monthlyBody"></tbody>
+      </table>
+      <p class="muted" id="monthlyEmpty">אין עדיין נתונים. הוסיפו חשבון בנק ולחצו "סנכרון מהבנקים".</p>
+    </section>
+
+    <section id="tab-transactions" class="card tab" hidden>
+      <div class="toolbar">
+        <input id="txSearch" placeholder="חיפוש..." />
+        <select id="txType">
+          <option value="">הכל</option>
+          <option value="income">הכנסות</option>
+          <option value="donation">תרומות</option>
+          <option value="expense">הוצאות</option>
+          <option value="ignore">לא נספר</option>
+        </select>
+        <button id="addManualBtn">+ הוספה ידנית</button>
+      </div>
+      <form id="manualForm" class="inline-form" hidden>
+        <select name="type">
+          <option value="income">הכנסה</option>
+          <option value="donation">תרומה</option>
+        </select>
+        <input name="date" type="date" required />
+        <input name="amount" type="number" step="0.01" min="0.01" placeholder="סכום" required />
+        <input name="description" placeholder="תיאור" />
+        <button class="primary" type="submit">שמירה</button>
+      </form>
+      <p class="muted small">אפשר לשנות את הסיווג של כל תנועה. "אוטומטי" = לפי הכללים.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>תאריך</th><th>תיאור</th><th>חשבון</th><th>סכום</th><th>סיווג</th><th></th></tr></thead>
+          <tbody id="txBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tab-accounts" class="card tab" hidden>
+      <ul id="accountList" class="list"></ul>
+      <h3>הוספת חשבון בנק / כרטיס אשראי</h3>
+      <form id="accountForm" class="stack">
+        <select id="companySelect" required></select>
+        <input id="accountLabel" placeholder="שם לתצוגה (לא חובה)" />
+        <div id="credFields" class="stack"></div>
+        <button class="primary" type="submit">הוספה</button>
+      </form>
+      <p class="muted small">פרטי ההתחברות נשמרים מוצפנים במחשב שלך בלבד ומשמשים רק להתחברות לאתר הבנק.</p>
+      <div id="syncLogBox" hidden><h3>יומן סנכרון</h3><pre id="syncLog"></pre></div>
+    </section>
+
+    <section id="tab-rules" class="card tab" hidden>
+      <p class="muted small">תנועה שהתיאור שלה מכיל את הטקסט תסווג בהתאם. הכלל הראשון שמתאים קובע.
+        ללא כלל: זיכוי בבנק = הכנסה, חיוב = הוצאה.</p>
+      <form id="ruleForm" class="inline-form">
+        <input name="pattern" placeholder="טקסט בתיאור התנועה" required />
+        <select name="type">
+          <option value="income">הכנסה</option>
+          <option value="donation">תרומה</option>
+          <option value="ignore">לא נספר</option>
+          <option value="expense">הוצאה</option>
+        </select>
+        <button class="primary" type="submit">הוספת כלל</button>
+      </form>
+      <ul id="ruleList" class="list"></ul>
+    </section>
+
+    <section id="tab-settings" class="card tab" hidden>
+      <form id="settingsForm" class="stack narrow-form">
+        <label>אחוז
+          <select name="percent">
+            <option value="10">מעשר – 10%</option>
+            <option value="20">חומש – 20%</option>
+          </select>
+        </label>
+        <label>לחשב החל מתאריך <input type="date" name="startDate" /></label>
+        <label>יתרת פתיחה (חוב מעשר קודם; מספר שלילי = זכות)
+          <input type="number" step="0.01" name="openingBalance" /></label>
+        <label>סנכרון אוטומטי כל (שעות, 0 = כבוי)
+          <input type="number" min="0" name="autoSyncHours" /></label>
+        <button class="primary" type="submit">שמירה</button>
+        <p id="settingsMsg" class="muted"></p>
+      </form>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
