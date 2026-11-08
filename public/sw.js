@@ -1,5 +1,5 @@
 // Service worker: מאפשר התקנה כאפליקציה ופתיחה מהירה. נתונים (/api) לעולם לא נשמרים במטמון.
-const CACHE = 'maaser-v2';
+const CACHE = 'maaser-v3';
 const SHELL = ['/', '/index.html', '/app.js', '/style.css', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {

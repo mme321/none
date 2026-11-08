@@ -44,7 +44,7 @@ fly secrets set ANDROID_PACKAGE_NAME=dev.me321.maaser \
 - **Data safety**: נאסף מייל ושם (זיהוי) ומידע פיננסי (תנועות בחשבון). מוצפן בהעברה. אפשר לבקש מחיקה. משותף רק עם ספקי החיבור (Plaid, Salt Edge) לצורך מתן השירות.
 - **קטגוריה**: Finance. שימו לב: לאפליקציות פיננסיות Google עשויה לבקש הצהרה נוספת (Financial features declaration).
   האפליקציה **לא** מציעה הלוואות, השקעות או תשלומים, רק קריאה וחישוב.
-- צילומי מסך: לפחות 2 צילומי טלפון. אייקון 512×512 נמצא ב-`public/icons/icon-512.png`.
+- צילומי מסך: לפחות 2 צילומי טלפון. אייקון 512×512: `docs/brand/icon-512.png`. תמונת Feature graphic בגודל 1024×500: `docs/brand/play-feature-graphic.png`.
 
 ## App Store (אפל)
 - דורש Apple Developer Program (99$ לשנה) ומחשב Mac עם Xcode.

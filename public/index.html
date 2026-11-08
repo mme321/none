@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>מחשבון מעשר</title>
   <meta name="description" content="חישוב מעשר וחומש לפי התנועות בחשבונות הבנק – בישראל ובארה&quot;ב" />
-  <meta name="theme-color" content="#2459d6" />
+  <meta name="theme-color" content="#1d4ed8" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="icons/icon-192.png" type="image/png" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" href="icons/logo.svg" type="image/svg+xml" />
+  <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
-    <h1>מחשבון מעשר</h1>
+    <h1 class="brand"><img src="icons/logo.svg" alt="" width="32" height="32" />מחשבון מעשר</h1>
     <div class="header-actions">
       <button id="syncBtn" class="primary" hidden>רענון נתונים</button>
       <span id="userName" class="small muted" hidden></span>
@@ -23,6 +24,7 @@
 
   <!-- מסך התחברות -->
   <section id="loginScreen" class="card narrow center" hidden>
+    <img src="icons/logo.svg" alt="" width="96" height="96" class="login-logo" />
     <h2>ברוכים הבאים למחשבון המעשר</h2>
     <p class="muted">חישוב מעשר וחומש אוטומטי לפי התנועות בחשבונות הבנק וכרטיסי האשראי – בישראל ובארה"ב.</p>
     <a class="google-btn" href="/auth/google" id="googleBtn">

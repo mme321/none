@@ -156,3 +156,6 @@ td:nth-child(2) { white-space: normal; }
 .badge.error, .badge.reauth { color: var(--neg); }
 .btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .center-row { justify-content: center; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand img { border-radius: 22%; }
+.login-logo { border-radius: 22%; margin-top: 8px; box-shadow: 0 6px 18px rgba(30, 64, 175, 0.25); }
